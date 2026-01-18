@@ -10,34 +10,28 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout (not really needed, but keeps git happy)
-        uses: actions/checkout@v4
-
       - name: Sync forks
         env:
           GH_TOKEN: ${{ secrets.ORG_SYNC_TOKEN }}
           ORG: tickets-test
-          UPSTREAM_REPO: upstream-owner/original-repo
-          BRANCH: main
         run: |
           set -e
 
-          echo "Fetching org repos..."
+          echo "Fetching forked repos in $ORG..."
           repos=$(gh api orgs/$ORG/repos --paginate --jq '.[] | select(.fork==true) | .name')
 
           for repo in $repos; do
-            echo "Syncing $repo"
+            echo "Syncing $ORG/$repo..."
 
-            git clone https://x-access-token:$GH_TOKEN@github.com/$ORG/$repo.git
-            cd $repo
+            # Get the default branch for this fork
+            default_branch=$(gh api repos/$ORG/$repo --jq '.default_branch')
 
-            git remote add upstream https://github.com/$UPSTREAM_REPO.git || true
-            git fetch upstream
-
-            git checkout $BRANCH
-            git reset --hard upstream/$BRANCH
-
-            git push origin $BRANCH --force
-            cd ..
-            rm -rf $repo
+            # Use GitHub's built-in sync fork API
+            if gh api repos/$ORG/$repo/merge-upstream -X POST -f branch="$default_branch" 2>/dev/null; then
+              echo "✓ Synced $repo ($default_branch)"
+            else
+              echo "⚠ Could not sync $repo - may already be up to date or have conflicts"
+            fi
           done
+
+          echo "Done!"
