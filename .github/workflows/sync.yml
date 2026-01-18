@@ -1,0 +1,43 @@
+name: Sync forks with upstream
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 * * * *" # every hour
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout (not really needed, but keeps git happy)
+        uses: actions/checkout@v4
+
+      - name: Sync forks
+        env:
+          GH_TOKEN: ${{ secrets.ORG_SYNC_TOKEN }}
+          ORG: tickets-test
+          UPSTREAM_REPO: upstream-owner/original-repo
+          BRANCH: main
+        run: |
+          set -e
+
+          echo "Fetching org repos..."
+          repos=$(gh api orgs/$ORG/repos --paginate --jq '.[] | select(.fork==true) | .name')
+
+          for repo in $repos; do
+            echo "Syncing $repo"
+
+            git clone https://x-access-token:$GH_TOKEN@github.com/$ORG/$repo.git
+            cd $repo
+
+            git remote add upstream https://github.com/$UPSTREAM_REPO.git || true
+            git fetch upstream
+
+            git checkout $BRANCH
+            git reset --hard upstream/$BRANCH
+
+            git push origin $BRANCH --force
+            cd ..
+            rm -rf $repo
+          done
