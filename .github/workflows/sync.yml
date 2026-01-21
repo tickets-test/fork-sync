@@ -3,7 +3,7 @@ name: Sync forks with upstream
 on:
   workflow_dispatch:
   schedule:
-    - cron: "0 * * * *" # every hour
+    - cron: "0,30 * * * *" # every 30 minutes
 
 jobs:
   sync:
